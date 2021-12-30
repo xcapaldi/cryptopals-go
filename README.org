@@ -1,0 +1,207 @@
+#+TITLE: cryptopals-go
+#+AUTHOR: Xavier Capaldi
+
+My solutions to the [[https://cryptopals.com/][Cryptopals Challenges]] in Go.
+
+* Set 1: Basics
+** 1. Convert hex to base64
+Take a hex string as input and return it encoded into base64 (uint64).
+
+#+BEGIN_SRC go :tangle 1-1.go
+  package main
+
+  import (
+          "fmt"
+          "encoding/hex"
+          "encoding/base64"
+          "log"
+  )
+
+  func convertHexToBase64(src string) (string, error) {
+          // decode from hex
+          b, err := hex.DecodeString(src)
+          if err != nil {
+                  return "", err
+          }
+          // encode to base64
+          return base64.StdEncoding.EncodeToString(b), nil
+  }
+
+  func main() {
+          src := "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
+          dst, err := convertHexToBase64(src)
+          if err != nil {
+                  log.Fatal(err)
+          }
+          fmt.Println("Base64 encoding:\n" , dst)
+  }
+#+END_SRC
+
+#+RESULTS:
+: Base64 encoding:
+:  SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
+
+** 2. Fixed XOR
+Given two equal-length hex strings, decode and perform XOR between the two.
+Note that this could be made more efficient by perform the XOR operation on something larger than bytes (i.e. uint64s) but for these exercises performance is not an issue.
+
+#+BEGIN_SRC go :tangle 1-2.go
+  package main
+
+  import (
+          "fmt"
+          "encoding/hex"
+          "log"
+  )
+
+  func xorHexStrings(a, b string) ([]byte, error) {
+          // decode from hex
+          aDecoded, err := hex.DecodeString(a)
+          if err != nil {
+                  return nil, err
+          }
+          bDecoded, err := hex.DecodeString(b)
+          if err != nil {
+                  return nil, err
+          }
+
+          // check that strings are same length
+          if len(aDecoded) != len(bDecoded) {
+                  return nil, fmt.Errorf("hex strings are not equal length")
+          }
+
+          // XOR
+          d := make([]byte, len(aDecoded))
+          for i, _ := range d {
+                  d[i] = aDecoded[i] ^ bDecoded[i]
+          }
+
+          return d, nil
+  }
+
+  func main() {
+          a := "1c0111001f010100061a024b53535009181c"
+          b := "686974207468652062756c6c277320657965"
+
+          dst, err := xorHexStrings(a, b)
+          if err != nil {
+                  log.Fatal(err)
+          }
+          fmt.Printf("%x", dst)
+  }
+#+END_SRC
+
+#+RESULTS:
+: 746865206b696420646f6e277420706c6179
+
+** 3. Single-byte XOR cipher
+Given a hex-encoded string that has been XORed against a single character, find the key that was used and decrypt the message.
+We are guaranteed that the original string was in plain English.
+
+The solution works but I admit freely that it could return an invalid result given another input.
+The method of "scoring" a deciphered result is crude.
+I take the frequency of characters in the English alphabet as a float score value and sum the scores of all characters in a given deciphering attempt.
+The highest scoring result is presented.
+Rather than have duplicate values in the scoring map present for upper and lowercase characters, I simply adjust the uppercase characters before assigning the score of their lowercase counterpart.
+
+#+BEGIN_SRC go :tangle 1-3.go
+  package main
+
+  import (
+          "fmt"
+          "encoding/hex"
+          "log"
+  )
+
+  var englishCharFrequency = map[byte]float32 {
+          97:8.34,
+          98:1.54,
+          99:2.73,
+          100:4.14,
+          101:12.60,
+          102:2.03,
+          103:1.92,
+          104:6.11,
+          105:6.71,
+          106:0.23,
+          107:0.87,
+          108:4.24,
+          109:2.53,
+          110:6.80,
+          111:7.70,
+          112:1.66,
+          113:0.09,
+          114:5.68,
+          115:6.11,
+          116:9.37,
+          117:2.85,
+          118:1.06,
+          119:2.34,
+          120:0.20,
+          121:2.04,
+          122:0.06,
+  }
+
+  func decode(src string, scoringMap map[byte]float32) (key byte, decoded []byte, err error) {
+          // decode from hex
+          d, err := hex.DecodeString(src)
+          if err != nil {
+                  return byte(0), nil, err
+          }
+          decoded = make([]byte, len(d))
+          var score float32
+          // assume key is a single ascii character
+          for k := 0; k < 126; k++ {
+                  var keyScore float32
+                  // inverse the xor with this key and sum the score
+                  for i, _ := range d {
+                          d[i] ^= byte(k)
+                          if d[i] < 91 {
+                                  // convert to lowercase for the purposes of scoring
+                                  keyScore += scoringMap[d[i]+32]
+                          } else {
+                                  keyScore += scoringMap[d[i]]
+                          }
+                  }
+
+                  // compare score with previous key
+                  // if new score is higher replace the "best" key and decoding
+                  if keyScore > score {
+                          score = keyScore
+                          key = byte(k)
+                          copy(decoded, d)
+                  }
+          }
+
+          return key, decoded, nil
+  }
+
+  func main() {
+          src := "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
+
+          key, decoded, err := decode(src, englishCharFrequency)
+          if err != nil {
+                  log.Fatal(err)
+          }
+
+          fmt.Printf("key: %s\ndecoded message: %s\n", string([]byte{key}), string(decoded))
+  }
+#+END_SRC
+
+#+RESULTS:
+: key: X
+: decoded message: Cooking MC's like a pound of bacon
+
+** 4. Detect single-character XOR
+** 5. Implement repeating-key XOR
+** 6. Break repeating-key XOR
+** 7. AES in ECB mode
+** 8. Detect AES in ECB mode
+
+* Set 2: Block crypto
+* Set 3: Block & stream crypto
+* Set 4: Stream crypto and randomness
+* Set 5: Diffie-Hellman and friends
+* Set 6: RSA and DSA
+* Set 7: Hashes
+* Set 8: Abstract algebra
