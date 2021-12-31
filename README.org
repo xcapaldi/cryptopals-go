@@ -7,7 +7,7 @@ My solutions to the [[https://cryptopals.com/][Cryptopals Challenges]] in Go.
 ** 1. Convert hex to base64
 Take a hex string as input and return it encoded into base64 (uint64).
 
-#+BEGIN_SRC go :tangle 1-1.go
+#+BEGIN_SRC go :tangle 1-1.go :results org
   package main
 
   import (
@@ -38,14 +38,16 @@ Take a hex string as input and return it encoded into base64 (uint64).
 #+END_SRC
 
 #+RESULTS:
-: Base64 encoding:
-:  SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
+#+begin_src org
+Base64 encoding:
+ SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
+#+end_src
 
 ** 2. Fixed XOR
 Given two equal-length hex strings, decode and perform XOR between the two.
 Note that this could be made more efficient by perform the XOR operation on something larger than bytes (i.e. uint64s) but for these exercises performance is not an issue.
 
-#+BEGIN_SRC go :tangle 1-2.go
+#+BEGIN_SRC go :tangle 1-2.go :results org
   package main
 
   import (
@@ -92,7 +94,9 @@ Note that this could be made more efficient by perform the XOR operation on some
 #+END_SRC
 
 #+RESULTS:
-: 746865206b696420646f6e277420706c6179
+#+begin_src org
+746865206b696420646f6e277420706c6179
+#+end_src
 
 ** 3. Single-byte XOR cipher
 Given a hex-encoded string that has been XORed against a single character, find the key that was used and decrypt the message.
@@ -104,7 +108,7 @@ I take the frequency of characters in the English alphabet as a float score valu
 The highest scoring result is presented.
 Rather than have duplicate values in the scoring map present for upper and lowercase characters, I simply adjust the uppercase characters before assigning the score of their lowercase counterpart.
 
-#+BEGIN_SRC go :tangle 1-3.go
+#+BEGIN_SRC go :tangle 1-3.go :results org
   package main
 
   import (
@@ -189,11 +193,209 @@ Rather than have duplicate values in the scoring map present for upper and lower
 #+END_SRC
 
 #+RESULTS:
-: key: X
-: decoded message: Cooking MC's like a pound of bacon
+#+begin_src org
+key: X
+decoded message: Cooking MC's like a pound of bacon
+#+end_src
 
 ** 4. Detect single-character XOR
+Given an input [[https://cryptopals.com/static/challenge-data/4.txt][file]], check which 60-character string has been encrypted by single-character XOR.
+Since the instructions were a little unclear, I first just printed the lines from the file decoded from hex.
+I wanted to see if there were lines of English text and only one was encoded or if there were lines of gibberish and only one gibberish line could be decoded.
+It seemed to be the latter.
+The brute force approach is quite simple then.
+If we make the same assumptions as 1-3, we can iterate through each line and iterate through every possible key to find the resulting decoded message with the highest value based letter frequency in the English language.
+We should have a score associated with each line.
+We can just assume the highest score is the "real" one and that message was encoded with single-character XOR.
+
+#+BEGIN_SRC go :tangle 1-4.go :results org
+  package main
+
+  import (
+          "fmt"
+          "log"
+          "encoding/hex"
+          "os"
+          "bufio"
+  )
+
+  // englishCharFrequency holds the ascii (or utf-8)
+  // byte value for lowercase letters in the English
+  // language along with their corresponding percentage
+  // frequency. To access the value of uppercase
+  // characters, one can just modify the byte value.
+  // Uppercase characters have values from 65 to 90.
+  // Lowercase characters have value from 97 to 122.
+  // All other values hold symbols that we wouldn't
+  // want to modify. So to get the frequency of an
+  // uppercase character, simply add 32 to the byte
+  // value before looking up in the map.
+  var englishCharFrequency = map[byte]float32 {
+          97:8.34,
+          98:1.54,
+          99:2.73,
+          100:4.14,
+          101:12.60,
+          102:2.03,
+          103:1.92,
+          104:6.11,
+          105:6.71,
+          106:0.23,
+          107:0.87,
+          108:4.24,
+          109:2.53,
+          110:6.80,
+          111:7.70,
+          112:1.66,
+          113:0.09,
+          114:5.68,
+          115:6.11,
+          116:9.37,
+          117:2.85,
+          118:1.06,
+          119:2.34,
+          120:0.20,
+          121:2.04,
+          122:0.06,
+  }
+
+  // readLines takes in a filepath and reads lines from it
+  // one-by-one (appending to an output list) until it
+  // reaches the end of the file. Before appending, each
+  // line is decoded from hex into a byte slice for easy
+  // operation later.
+  func readLines(path string) (lines [][]byte, err error) {
+          file, err := os.Open(path)
+          if err != nil {
+                  return nil, err
+          }
+          scanner := bufio.NewScanner(file)
+          scanner.Split(bufio.ScanLines)
+          for scanner.Scan() {
+                  decodedLine, err := hex.DecodeString(scanner.Text())
+                  if err != nil {
+                          return nil, err
+                  }
+                  lines = append(lines, decodedLine)
+          }
+          if err = scanner.Err(); err != nil {
+                  return nil, err
+          }
+
+          return lines, nil
+  }
+
+  // scoreLine iterates through every possible ascii character
+  // and performs a single-char XOR operation on the input line.
+  // For each key character used, it checks if the output has a
+  // higher score (based on English character frequency) than the
+  // previous best. Finally it returns the key and decoded line
+  // with the highest value. We are more thorough than 1-3 and
+  // actually check full range of possible keys.
+  func scoreLine(line []byte, scoreMap map[byte]float32) (key byte, decoded []byte, score float32) {
+          decoded = make([]byte, len(line))
+          scratch := make([]byte, len(line))
+          for k := 32; k < 127; k++ {
+                  copy(scratch, line)
+                  var kScore float32
+
+                  // single-char XOR and sum score
+                  for i, _ := range scratch {
+                          scratch[i] ^= byte(k)
+                          if ((scratch[i] > 64) && (scratch[i] < 91)) {
+                                  // convert uppercase to lowercase
+                                  kScore += scoreMap[scratch[i]+32]
+                          } else {
+                                  kScore += scoreMap[scratch[i]]
+                          }
+                  }
+
+                  // compare score with previous key and supplant if higher
+                  if kScore > score {
+                          score = kScore
+                          key = byte(k)
+                          copy(decoded, scratch)
+                  }
+          }
+
+          return key, decoded, score
+          }
+
+
+  // scoreLines scores each line by finding the single-char key
+  // for XOR cipher that results in the highest scoring (based
+  // on character frequency in English language).
+  func scoreLines(lines [][]byte, scoreMap map[byte]float32) (bestKey byte, decoded []byte, linum int) {
+          decoded = make([]byte, len(lines[0]))
+          var bestScore float32
+
+          for i, line := range lines {
+                  key, scratch, score := scoreLine(line, scoreMap)
+                  if score > bestScore {
+                          bestScore = score
+                          bestKey = key
+                          copy(decoded, scratch)
+                          linum = i
+                  }
+
+          }
+
+          return
+
+  }
+
+  func main () {
+          path := "4.txt"
+          // read in the lines and decode from hex
+          lines, err := readLines(path)
+          if err != nil {
+                  log.Fatal(err)
+          }
+          // score the lines finding the most likely
+          // encoded
+          bestKey, decoded, linum := scoreLines(lines, englishCharFrequency)
+          fmt.Printf("line %v was encoding via single-character XOR cipher with %s as the key. The decoded line is: %s\n", linum, string([]byte{bestKey}), string(decoded))
+  }
+#+END_SRC
+
+#+RESULTS:
+#+begin_src org
+line 170 was encoding via single-character XOR cipher with 5 as the key. The decoded line is: Now that the party is jumping
+#+end_src
+
 ** 5. Implement repeating-key XOR
+Repeating-key XOR simply iterates between the bytes of the key as is performs the XOR encryption.
+If the key has five bytes, it will iterate between those five bytes for each set of five source bytes.
+Implementing the encryption is straightforward.
+
+#+BEGIN_SRC go :tangle 1-5.go :results org
+  package main
+
+  import (
+          "fmt"
+  )
+
+  func encrypt(src []byte, key []byte) {
+          for i, _ := range src {
+                  src[i] ^= key[i%len(key)]
+          }
+  }
+
+  func main() {
+          src := "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
+          bSrc := []byte(src)
+          key := "ICE"
+
+          encrypt(bSrc, []byte(key))
+          fmt.Printf("%x", bSrc)
+  }
+#+END_SRC
+
+#+RESULTS:
+#+begin_src org
+0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
+#+end_src
+
 ** 6. Break repeating-key XOR
 ** 7. AES in ECB mode
 ** 8. Detect AES in ECB mode
