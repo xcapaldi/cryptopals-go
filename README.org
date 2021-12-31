@@ -7,7 +7,7 @@ My solutions to the [[https://cryptopals.com/][Cryptopals Challenges]] in Go.
 ** 1. Convert hex to base64
 Take a hex string as input and return it encoded into base64 (uint64).
 
-#+BEGIN_SRC go :tangle 1-1.go :results org
+#+BEGIN_SRC go :tangle 1-1.go
   package main
 
   import (
@@ -38,16 +38,14 @@ Take a hex string as input and return it encoded into base64 (uint64).
 #+END_SRC
 
 #+RESULTS:
-#+begin_src org
-Base64 encoding:
- SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
-#+end_src
+: Base64 encoding:
+:  SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
 
 ** 2. Fixed XOR
 Given two equal-length hex strings, decode and perform XOR between the two.
 Note that this could be made more efficient by perform the XOR operation on something larger than bytes (i.e. uint64s) but for these exercises performance is not an issue.
 
-#+BEGIN_SRC go :tangle 1-2.go :results org
+#+BEGIN_SRC go :tangle 1-2.go
   package main
 
   import (
@@ -94,9 +92,7 @@ Note that this could be made more efficient by perform the XOR operation on some
 #+END_SRC
 
 #+RESULTS:
-#+begin_src org
-746865206b696420646f6e277420706c6179
-#+end_src
+: 746865206b696420646f6e277420706c6179
 
 ** 3. Single-byte XOR cipher
 Given a hex-encoded string that has been XORed against a single character, find the key that was used and decrypt the message.
@@ -108,7 +104,7 @@ I take the frequency of characters in the English alphabet as a float score valu
 The highest scoring result is presented.
 Rather than have duplicate values in the scoring map present for upper and lowercase characters, I simply adjust the uppercase characters before assigning the score of their lowercase counterpart.
 
-#+BEGIN_SRC go :tangle 1-3.go :results org
+#+BEGIN_SRC go :tangle 1-3.go
   package main
 
   import (
@@ -193,10 +189,8 @@ Rather than have duplicate values in the scoring map present for upper and lower
 #+END_SRC
 
 #+RESULTS:
-#+begin_src org
-key: X
-decoded message: Cooking MC's like a pound of bacon
-#+end_src
+: key: X
+: decoded message: Cooking MC's like a pound of bacon
 
 ** 4. Detect single-character XOR
 Given an input [[https://cryptopals.com/static/challenge-data/4.txt][file]], check which 60-character string has been encrypted by single-character XOR.
@@ -208,7 +202,7 @@ If we make the same assumptions as 1-3, we can iterate through each line and ite
 We should have a score associated with each line.
 We can just assume the highest score is the "real" one and that message was encoded with single-character XOR.
 
-#+BEGIN_SRC go :tangle 1-4.go :results org
+#+BEGIN_SRC go :tangle 1-4.go
   package main
 
   import (
@@ -359,16 +353,14 @@ We can just assume the highest score is the "real" one and that message was enco
 #+END_SRC
 
 #+RESULTS:
-#+begin_src org
-line 170 was encoding via single-character XOR cipher with 5 as the key. The decoded line is: Now that the party is jumping
-#+end_src
+: line 170 was encoding via single-character XOR cipher with 5 as the key. The decoded line is: Now that the party is jumping
 
 ** 5. Implement repeating-key XOR
 Repeating-key XOR simply iterates between the bytes of the key as is performs the XOR encryption.
 If the key has five bytes, it will iterate between those five bytes for each set of five source bytes.
 Implementing the encryption is straightforward.
 
-#+BEGIN_SRC go :tangle 1-5.go :results org
+#+BEGIN_SRC go :tangle 1-5.go
   package main
 
   import (
@@ -392,11 +384,76 @@ Implementing the encryption is straightforward.
 #+END_SRC
 
 #+RESULTS:
-#+begin_src org
-0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
-#+end_src
+: 0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
 
 ** 6. Break repeating-key XOR
+First we need to write a method that can compute the Hamming distance between two strings.
+The Hamming distance is the number of differing bits.
+We can find this by counting the number of set bits after XORing the two strings.
+This can be done manually by shifting a mask and checking in bit in each byte.
+Alternatively, we can use the ~math/bits~ bit counting methods.
+
+#+BEGIN_SRC go
+  package main
+
+  import (
+          "fmt"
+          "log"
+          "math/bits"
+  )
+
+  func hammingDist(strOne, strTwo []byte) (dist int, err error) {
+          if len(strOne) != len(strTwo) {
+                  return dist, fmt.Errorf("hamming distance can not be calculated for strings of differing length")
+          }
+
+          var scratch byte
+          for i, _ := range strOne {
+                  scratch = strOne[i] ^ strTwo[i]
+                  for j := 0; j < 8; j++ {
+                          if scratch & (1 << j) > 0 {
+                                  dist++
+                          }
+                  }
+          }
+
+          return dist, nil	
+  }
+
+  func hammingDistWithMathBits(strOne, strTwo []byte) (dist int, err error) {
+          if len(strOne) != len(strTwo) {
+                  return dist, fmt.Errorf("hamming distance can not be calculated for strings of differing length")
+          }
+          for i, _ := range strOne {
+                  dist += bits.OnesCount8(strOne[i] ^ strTwo[i])
+          }
+
+          return dist, nil	
+  }
+
+  func main() {
+          strOne := "this is a test"
+          strTwo := "wokka wokka!!!"
+          hDist, err := hammingDist([]byte(strOne), []byte(strTwo))
+          if err != nil {
+                  log.Fatal(err)
+          }
+          fmt.Println("hamming distance:", hDist)
+	
+          hDist, err = hammingDistWithMathBits([]byte(strOne), []byte(strTwo))
+          if err != nil {
+                  log.Fatal(err)
+          }
+          fmt.Println("hamming distance:", hDist)
+  }
+#+END_SRC
+
+#+RESULTS:
+: hamming distance: 37
+: hamming distance: 37
+
+Still unfinished . . .
+
 ** 7. AES in ECB mode
 ** 8. Detect AES in ECB mode
 
