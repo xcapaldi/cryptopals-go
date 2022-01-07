@@ -711,6 +711,65 @@ However, I can't help but wonder how hard this would be to decode if (a) we didn
 Certainly this would be much more challenging in that case, even if this implementation of the algorithm could get you close to a proper solution.
 
 ** 7. AES in ECB mode
+We are given a base64 encoded file that has been encrypted with AES-128 in ECB mode with the key "YELLOW SUBMARINE" (16 bytes).
+We are tasked to decrypt the file.
+AES stands for the Advanced Encryption Standard and is a key-symmetric algorithm used by the US government.
+Key symmetry means that the same key is used for encryption and decryption.
+ECB stands for Electronic Codebook which simply means that the message is divided into blocks and encrypted separately.
+This is quite a simple problem then since we just have to split the source into 16-byte blocks and then decrypt each block.
+We can do this all in-place.
+
+#+BEGIN_SRC go :tangle 1-7.go :results none
+  package main
+
+  import (
+          "fmt"
+          "log"
+          "os"
+          "encoding/base64"
+          "crypto/aes"
+  )
+
+  func main() {
+          // read and decode base64 encoded file
+          src, err := os.ReadFile("7.txt")
+          if err != nil {
+                  log.Fatal(err)
+          }
+          _, err = base64.StdEncoding.Decode(src, src)
+          if err != nil {
+                  log.Fatal(err)
+          }
+
+          key := "YELLOW SUBMARINE"
+
+          // pad the source to ensure it is a
+          // multiple of the block size
+          pad := len(src) % len(key)
+          if pad != 0 {
+                  for i := 0; i < len(key)-pad; i++ {
+                          src = append(src, 0)
+                  }
+          }
+
+          // create AES cipher
+          c, err := aes.NewCipher([]byte(key))
+          if err != nil {
+                  log.Fatal(err)
+          }
+
+          // find how many blocks
+          blks := len(src) / len(key)
+
+          for j := 0; j < blks; j++ {
+                  c.Decrypt(src[j*len(key):(j+1)*len(key)],
+                          src[j*len(key):(j+1)*len(key)])
+          }
+
+          fmt.Printf("%s", src)
+  }
+#+END_SRC
+
 ** 8. Detect AES in ECB mode
 
 * Set 2: Block crypto
