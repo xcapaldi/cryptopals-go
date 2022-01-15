@@ -5,7 +5,21 @@ My solutions to the [[https://cryptopals.com/][Cryptopals Challenges]] in Go.
 
 * Set 1: Basics
 ** 1. Convert hex to base64
-Take a hex string as input and return it encoded into base64 (uint64).
+#+BEGIN_QUOTE
+The string:
+
+49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d
+
+Should produce:
+
+SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
+
+So go ahead and make that happen.
+You'll need to use this code for the rest of the exercises.
+
+Always operate on raw bytes, never on encoded strings.
+Only use hex and base64 for pretty-printing.
+#+END_QUOTE
 
 #+BEGIN_SRC go :tangle 1-1.go
   package main
@@ -42,7 +56,23 @@ Take a hex string as input and return it encoded into base64 (uint64).
 :  SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t
 
 ** 2. Fixed XOR
-Given two equal-length hex strings, decode and perform XOR between the two.
+
+#+BEGIN_QUOTE
+Write a function that takes two equal-length buffers and produces their XOR combination.
+
+If your function works properly, then when you feed it the string:
+
+1c0111001f010100061a024b53535009181c
+
+... after hex decoding, and when XOR'd against:
+
+686974207468652062756c6c277320657965
+
+... should produce:
+
+746865206b696420646f6e277420706c6179
+#+END_QUOTE
+
 Note that this could be made more efficient by perform the XOR operation on something larger than bytes (i.e. uint64s) but for these exercises performance is not an issue.
 
 #+BEGIN_SRC go :tangle 1-2.go
@@ -95,8 +125,23 @@ Note that this could be made more efficient by perform the XOR operation on some
 : 746865206b696420646f6e277420706c6179
 
 ** 3. Single-byte XOR cipher
-Given a hex-encoded string that has been XORed against a single character, find the key that was used and decrypt the message.
-We are guaranteed that the original string was in plain English.
+
+#+BEGIN_QUOTE
+The hex encoded string:
+
+1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736
+
+... has been XOR'd against a single character.
+Find the key, decrypt the message.
+
+You can do this by hand. But don't: write code to do it for you.
+
+How? Devise some method for "scoring" a piece of English plaintext.
+Character frequency is a good metric.
+Evaluate each output and choose the one with the best score. 
+
+You now have our permission to make "ETAOIN SHRDLU" jokes on Twitter. 
+#+END_QUOTE
 
 The solution works but I admit freely that it could return an invalid result given another input.
 The method of "scoring" a deciphered result is crude.
@@ -193,8 +238,16 @@ Rather than have duplicate values in the scoring map present for upper and lower
 : decoded message: Cooking MC's like a pound of bacon
 
 ** 4. Detect single-character XOR
-Given an input [[https://cryptopals.com/static/challenge-data/4.txt][file]], check which 60-character string has been encrypted by single-character XOR.
-Since the instructions were a little unclear, I first just printed the lines from the file decoded from hex.
+
+#+BEGIN_QUOTE
+One of the 60-character strings in this file (4.txt) has been encrypted by single-character XOR.
+
+Find it.
+
+(Your code from #3 should help.) 
+#+END_QUOTE
+
+Since the instructions are a little unclear, I first just printed the lines from the file decoded from hex.
 I wanted to see if there were lines of English text and only one was encoded or if there were lines of gibberish and only one gibberish line could be decoded.
 It seemed to be the latter.
 The brute force approach is quite simple then.
@@ -356,9 +409,29 @@ We can just assume the highest score is the "real" one and that message was enco
 : line 170 was encoding via single-character XOR cipher with 5 as the key. The decoded line is: Now that the party is jumping
 
 ** 5. Implement repeating-key XOR
-Repeating-key XOR simply iterates between the bytes of the key as is performs the XOR encryption.
-If the key has five bytes, it will iterate between those five bytes for each set of five source bytes.
-Implementing the encryption is straightforward.
+
+#+BEGIN_QUOTE
+Here is the opening stanza of an important work of the English language:
+
+Burning 'em, if you ain't quick and nimble
+I go crazy when I hear a cymbal
+
+Encrypt it, under the key "ICE", using repeating-key XOR.
+
+In repeating-key XOR, you'll sequentially apply each byte of the key; the first byte of plaintext will be XOR'd against I, the next C, the next E, then I again for the 4th byte, and so on.
+
+It should come out to:
+
+0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272
+a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
+
+Encrypt a bunch of stuff using your repeating-key XOR function.
+Encrypt your mail.
+Encrypt your password file.
+Your .sig file.
+Get a feel for it.
+I promise, we aren't wasting your time with this. 
+#+END_QUOTE
 
 #+BEGIN_SRC go :tangle 1-5.go
   package main
@@ -387,6 +460,54 @@ Implementing the encryption is straightforward.
 : 0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
 
 ** 6. Break repeating-key XOR
+
+#+BEGIN_QUOTE
+This challenge isn't conceptually hard, but it involves actual error-prone coding.
+The other challenges in this set are there to bring you up to speed.
+This one is there to qualify you.
+If you can do this one, you're probably just fine up to Set 6.
+
+There's a file here (6.txt).
+It's been base64'd after being encrypted with repeating-key XOR.
+
+Decrypt it.
+
+Here's how:
+
+Let KEYSIZE be the guessed length of the key; try values from 2 to (say) 40.
+Write a function to compute the edit distance/Hamming distance between two strings.
+The Hamming distance is just the number of differing bits.
+The distance between:
+
+this is a test
+
+and
+
+wokka wokka!!!
+
+is 37.
+Make sure your code agrees before you proceed.
+For each KEYSIZE, take the first KEYSIZE worth of bytes, and the second KEYSIZE worth of bytes, and find the edit distance between them.
+Normalize this result by dividing by KEYSIZE.
+The KEYSIZE with the smallest normalized edit distance is probably the key.
+You could proceed perhaps with the smallest 2-3 KEYSIZE values.
+Or take 4 KEYSIZE blocks instead of 2 and average the distances.
+Now that you probably know the KEYSIZE: break the ciphertext into blocks of KEYSIZE length.
+Now transpose the blocks: make a block that is the first byte of every block, and a block that is the second byte of every block, and so on.
+Solve each block as if it was single-character XOR.
+You already have code to do this.
+For each block, the single-byte XOR key that produces the best looking histogram is the repeating-key XOR key byte for that block.
+Put them together and you have the key.
+
+This code is going to turn out to be surprisingly useful later on.
+Breaking repeating-key XOR ("Vigenere") statistically is obviously an academic exercise, a "Crypto 101" thing.
+But more people "know how" to break it than can actually break it, and a similar technique breaks something much more important.
+
+We get more tech support questions for this challenge than any of the other ones.
+We promise, there aren't any blatant errors in this text.
+In particular: the "wokka wokka!!!" edit distance really is 37.
+#+END_QUOTE
+
 First we need to write a method that can compute the Hamming distance between two strings.
 The Hamming distance is the number of differing bits.
 We can find this by counting the number of set bits after XORing the two strings.
@@ -711,8 +832,23 @@ However, I can't help but wonder how hard this would be to decode if (a) we didn
 Certainly this would be much more challenging in that case, even if this implementation of the algorithm could get you close to a proper solution.
 
 ** 7. AES in ECB mode
-We are given a base64 encoded file that has been encrypted with AES-128 in ECB mode with the key "YELLOW SUBMARINE" (16 bytes).
-We are tasked to decrypt the file.
+
+#+BEGIN_QUOTE
+The Base64-encoded content in this file (7.txt) has been encrypted via AES-128 in ECB mode under the key
+
+"YELLOW SUBMARINE".
+
+(case-sensitive, without the quotes; exactly 16 characters; I like "YELLOW SUBMARINE" because it's exactly 16 bytes long, and now you do too).
+
+Decrypt it.
+You know the key, after all.
+
+Easiest way: use OpenSSL::Cipher and give it AES-128-ECB as the cipher.
+
+You can obviously decrypt this using the OpenSSL command-line tool, but we're having you get ECB working in code for a reason.
+You'll need it a lot later on, and not just for attacking ECB. 
+#+END_QUOTE
+
 AES stands for the Advanced Encryption Standard and is a key-symmetric algorithm used by the US government.
 Key symmetry means that the same key is used for encryption and decryption.
 ECB stands for Electronic Codebook which simply means that the message is divided into blocks and encrypted separately.
@@ -771,8 +907,17 @@ We can do this all in-place.
 #+END_SRC
 
 ** 8. Detect AES in ECB mode
-We are given a file with many hex-encoded texts.
-One of them has been encrypted via AES ECB encryption.
+
+#+BEGIN_QUOTE
+In this file (8.txt) are a bunch of hex-encoded ciphertexts.
+
+One of them has been encrypted with ECB.
+
+Detect it.
+
+Remember that the problem with ECB is that it is stateless and deterministic; the same 16 byte plaintext block will always produce the same 16 byte ciphertext. 
+#+END_QUOTE
+
 Since ECB will always produce the same ciphertext given the same input block, we can detect the most likely ECB-encoded text by checking if there are duplicate cipher blocks.
 Of course this assumes there is duplicate text in the decrypted message.
 
@@ -840,6 +985,24 @@ Of course this assumes there is duplicate text in the decrypted message.
 
 * Set 2: Block crypto
 ** 9. Implement PKCS#7 padding
+
+#+BEGIN_QUOTE
+A block cipher transforms a fixed-sized block (usually 8 or 16 bytes) of plaintext into ciphertext.
+But we almost never want to transform a single block; we encrypt irregularly-sized messages.
+
+One way we account for irregularly-sized messages is by padding, creating a plaintext that is an even multiple of the blocksize.
+The most popular padding scheme is called PKCS#7.
+
+So: pad any block to a specific block length, by appending the number of bytes of padding to the end of the block.
+For instance,
+
+"YELLOW SUBMARINE"
+
+... padded to 20 bytes would be:
+
+"YELLOW SUBMARINE\x04\x04\x04\x04"
+#+END_QUOTE
+
 A block cipher works with fixed-size blocks but plaintext can almost never be divided evenly into blocks.
 So we have to pad and PKCS#7 is the most popular padding method.
 This method of padding appends bytes to the plaintext until it can be evenly divided into the blocksize.
@@ -847,6 +1010,8 @@ The byte that it appends is equal to the number of bytes to append.
 So if the blocksize is 16 and we have a plaintext of 28 bytes, we are short by 4 bytes.
 We will append 4 bytes each of value 4: ~[4, 4, 4, 4]~.
 We've already done something similar previously so this should be quite easy.
+
+Also, fun trick in Emacs, you can press ~C-x =~ to see the ASCII or hex encoding of any character. 
 
 #+BEGIN_SRC go :tangle 2-9.go
   package main
